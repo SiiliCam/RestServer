@@ -1,0 +1,3 @@
+[submodule "external/Logger"]
+	path = external/Logger
+	url = git@github.com:SiiliCam/Logger.git
