@@ -26,6 +26,6 @@ private:
 	void readRequest();
 
 	void handleRequest();
-	void sendResponse(const std::string& body, const unsigned status);
+	void sendResponse(const Response& response);
 
 };

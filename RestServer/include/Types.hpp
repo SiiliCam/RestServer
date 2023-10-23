@@ -37,7 +37,7 @@ public:
     }
 
     int getStatusCode() const { return statusCode; }
-
+    DataType getDataType() const { return type; }
     // Extraction operator for structured bindings
     template <std::size_t I>
     auto get() const {

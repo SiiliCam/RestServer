@@ -30,46 +30,57 @@ void Session::readRequest() {
 		});
 }
 
+// HandleRequest now sends a Response object to sendResponse
 void Session::handleRequest() {
     std::string path = req_.target();
     if (req_.method() == http::verb::get) {
         auto it = getHandlers_.find(path);
         if (it != getHandlers_.end()) {
-            auto [body, status] = it->second(req_);
-            sendResponse(body, status);
+            auto response = it->second(req_);
+            sendResponse(response);
         }
         else {
-            sendResponse("Not Found", 404);
+            sendResponse(Response("Not Found", 404));
         }
     }
     else if (req_.method() == http::verb::post) {
         auto it = postHandlers_.find(path);
         if (it != postHandlers_.end()) {
-            auto [body, status] = it->second(req_);
-            sendResponse(body, status);
+            auto response = it->second(req_);
+            sendResponse(response);
         }
         else {
-            sendResponse("Not Found", 404);
+            sendResponse(Response("Not Found", 404));
         }
     }
     else {
-        sendResponse("Unsupported request method", 405);
+        sendResponse(Response("Unsupported request method", 405));
     }
 }
 
-void Session::sendResponse(const std::string& message, const unsigned status) {
+void Session::sendResponse(const Response& response) {
+    auto message = response.serialize();
+    auto status = response.getStatusCode();
+    auto contentType = response.getDataType();
 
     res_ = { static_cast<http::status>(status), req_.version() };
-
     res_.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+
+    if (contentType == Response::DataType::JSON_TREE) {
+        // If the content is already JSON, send it directly
+        res_.body() = message;
+    }
+    else {
+        // Otherwise, wrap it in a JSON object with "message" as the key
+        boost::json::object jsonBody;
+        jsonBody["message"] = message;
+        res_.body() = boost::json::serialize(jsonBody);
+    }
+
     res_.set(http::field::content_type, "application/json");
-
-    boost::json::object jsonBody;
-    jsonBody["message"] = message;
-    res_.body() = boost::json::serialize(jsonBody) + "\r\n";
     res_.set(http::field::content_length, std::to_string(res_.body().size()));
-
     res_.prepare_payload();
+
     boost::system::error_code ec;
     http::async_write(socket_, res_, [self = shared_from_this()](beast::error_code ec, std::size_t) {
         if (ec) {
@@ -77,6 +88,5 @@ void Session::sendResponse(const std::string& message, const unsigned status) {
         }
         self->socket_.shutdown(tcp::socket::shutdown_send, ec);
         auto end = std::chrono::steady_clock::now();
-
         });
 }
